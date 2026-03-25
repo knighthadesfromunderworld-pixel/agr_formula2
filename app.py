@@ -10,105 +10,151 @@ st.set_page_config(page_title="Agro Twin Economics", page_icon="💰", layout="w
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .card { background-color: #ffffff; padding: 20px; border-radius: 15px; border-left: 6px solid #2e7d32; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .money-text { color: #2e7d32; font-weight: bold; font-size: 1.2em; }
-    .time-text { color: #1976d2; font-weight: bold; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .card { background-color: #ffffff; padding: 20px; border-radius: 15px; border-left: 6px solid #2e7d32; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .tamil-sub { color: #2e7d32; font-weight: bold; font-size: 1.1em; }
+    .revenue-text { color: #1b5e20; font-weight: bold; font-size: 1.2em; }
+    .time-text { color: #0d47a1; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- ADVANCED PSEUDO-FORMULA ENGINE ---
-def calculate_agro_logic(n, p, k, moisture, ph, soil_type):
-    # Profiles: [N, P, K, Moisture, pH, Soil_Type_Match, Base_Price, Growth_Months]
+# --- THE ADVANCED FORMULA ENGINE ---
+def calculate_suitability(n, p, k, moisture, temp, ph, soil_type):
+    # Profiles: [N, P, K, Moisture, Temp, pH, Ideal Soil Type]
     # Soil Types: 0:Sandy, 1:Loamy, 2:Clay, 3:Black
+    # Economic Data: [Base Revenue per Acre (₹), Years to Revenue]
     crop_db = {
-        "Teak": {"vals": [40, 20, 30, 35, 7.0, 1], "ta": "தேக்கு", "price": 500000, "time": "240 Months"},
-        "Turmeric": {"vals": [70, 45, 50, 75, 6.5, 2], "ta": "மஞ்சள்", "price": 120000, "time": "9 Months"},
-        "Banana": {"vals": [55, 35, 85, 80, 6.5, 1], "ta": "வாழை", "price": 80000, "time": "12 Months"},
-        "Pepper": {"vals": [50, 40, 40, 85, 6.0, 3], "ta": "மிளகு", "price": 150000, "time": "36 Months"},
-        "Cashew": {"vals": [30, 20, 20, 25, 5.5, 0], "ta": "முந்திரி", "price": 200000, "time": "60 Months"}
+        "Teak": {
+            "vals": [40, 25, 30, 35, 28, 7.0, 1], # Loamy
+            "econ": [600000, 20], 
+            "ta": "தேக்கு மரம்", "cat": "Timber"
+        },
+        "Turmeric": {
+            "vals": [75, 50, 60, 75, 26, 6.5, 2], # Clay
+            "econ": [150000, 1], 
+            "ta": "மஞ்சள்", "cat": "Cash Crop"
+        },
+        "Banana": {
+            "vals": [60, 40, 90, 80, 30, 6.5, 1], # Loamy
+            "econ": [90000, 1], 
+            "ta": "வாழை", "cat": "High Profit"
+        },
+        "Cashew": {
+            "vals": [30, 20, 25, 20, 32, 5.5, 0], # Sandy
+            "econ": [120000, 5], 
+            "ta": "முந்திரி", "cat": "Tree"
+        },
+        "Cotton": {
+            "vals": [50, 30, 40, 40, 28, 7.5, 3], # Black
+            "econ": [80000, 0.5], 
+            "ta": "பருத்தி", "cat": "Cash Crop"
+        }
     }
     
     results = {}
     for crop, data in crop_db.items():
         ideals = data["vals"]
+        base_rev, years = data["econ"]
         
-        # 1. Nutrient Suitability Score
-        n_penalty = abs(ideals[0] - n) * 1.2
-        p_penalty = abs(ideals[1] - p) * 1.2
-        k_penalty = abs(ideals[2] - k) * 1.2
-        ph_penalty = abs(ideals[4] - ph) * 20.0
+        # 1. Nutrient & Environment Scoring
+        n_score = 100 - (abs(ideals[0] - n) * 1.5)
+        p_score = 100 - (abs(ideals[1] - p) * 1.5)
+        k_score = 100 - (abs(ideals[2] - k) * 1.5)
+        env_score = 100 - (abs(ideals[3] - moisture) * 1.0 + abs(ideals[4] - temp) * 2.0 + abs(ideals[5] - ph) * 15.0)
         
-        suitability = 100 - (n_penalty + p_penalty + k_penalty + ph_penalty)
-        if soil_type != ideals[5]: suitability -= 20 # Soil mismatch penalty
+        # 2. Soil Type Multiplier (Crucial pseudo-logic)
+        soil_multiplier = 1.0 if soil_type == ideals[6] else 0.6
         
-        final_score = max(5, min(100, suitability))
+        # 3. Final Weighted Score
+        raw_score = ((n_score + p_score + k_score) / 3 * 0.4) + (env_score * 0.4)
+        final_score = max(5, min(100, raw_score)) * soil_multiplier
         
-        # 2. Economic Projection Formula
-        # Revenue = Base Price * (Suitability / 100) -> Higher suitability = Better yield
-        projected_revenue = data["price"] * (final_score / 100)
+        # 4. Financial Calculation (Revenue depends on suitability)
+        actual_revenue = base_rev * (final_score / 100)
         
         results[crop] = {
             "score": round(final_score, 1),
             "ta": data["ta"],
-            "revenue": int(projected_revenue),
-            "time": data["time"]
+            "cat": data["cat"],
+            "revenue": int(actual_revenue),
+            "time": years
         }
     return results
 
 # --- SIDEBAR: ROVER CONTROLS ---
 st.sidebar.title("🎮 Rover Telemetry")
+st.sidebar.markdown("---")
 with st.sidebar:
+    st.subheader("Nutrient Levels")
     n = st.slider("Nitrogen (N)", 0, 100, 45)
     p = st.slider("Phosphorus (P)", 0, 100, 30)
-    k = st.sidebar.slider("Potassium (K)", 0, 100, 50)
+    k = st.slider("Potassium (K)", 0, 100, 50)
+    
+    st.subheader("Environment")
     ph = st.slider("pH Level", 4.0, 9.0, 6.5)
+    temp = st.slider("Temperature °C", 15, 45, 28)
     moisture = st.slider("Moisture %", 0, 100, 40)
+    
     soil_map = {"Sandy": 0, "Loamy": 1, "Clay": 2, "Black": 3}
-    soil_select = st.selectbox("Soil Type", list(soil_map.keys()))
+    soil_select = st.selectbox("Observed Soil Type", list(soil_map.keys()))
 
 # --- MAIN DASHBOARD ---
 st.title("🛰️ Agro Twin: Economic & Biological Intelligence")
-st.write(f"Digital Twin Status: **Connected** | Target: **Optimal Yield Projection**")
+st.write(f"Digital Twin Status: **Live** | Location: **Kattankulathur, TN**")
 
-analysis = calculate_agro_logic(n, p, k, moisture, ph, soil_map[soil_select])
+scores = calculate_suitability(n, p, k, moisture, temp, ph, soil_map[soil_select])
 
 # TOP METRICS
 m1, m2, m3 = st.columns(3)
-top_crop = max(analysis, key=lambda x: analysis[x]['score'])
-m1.metric("Prime Recommendation", top_crop)
-m2.metric("Max Suitability", f"{analysis[top_crop]['score']}%")
-m3.metric("Est. Revenue (per acre)", f"₹{analysis[top_crop]['revenue']:,}")
+total_fertility = sum(v["score"] for v in scores.values()) / 5
+m1.metric("Global Fertility Index", f"{total_fertility:.1f}%")
+m2.metric("Soil Context", soil_select)
+m3.metric("pH Status", ph, delta="Optimal Range" if 6.0 <= ph <= 7.5 else "Correction Advised")
 
 st.divider()
 
-col_left, col_right = st.columns([1, 1])
+# RESULTS COLUMNS
+col_left, col_right = st.columns([1, 1.2])
 
 with col_left:
-    st.subheader("📊 Crop Suitability Index")
+    st.subheader("📊 Crop Suitability Matrix")
     fig, ax = plt.subplots(figsize=(6, 5))
-    crops = list(analysis.keys())
-    scores = [v["score"] for v in analysis.values()]
-    colors = ['#2e7d32' if s > 70 else '#fbc02d' if s > 40 else '#d32f2f' for s in scores]
-    ax.barh(crops, scores, color=colors)
+    labels = list(scores.keys())
+    values = [v["score"] for v in scores.values()]
+    colors = ['#2e7d32', '#66bb6a', '#fbc02d', '#fb8c00', '#d32f2f']
+    
+    ax.barh(labels, values, color=colors)
     ax.set_xlim(0, 100)
+    ax.set_xlabel("Suitability %")
     st.pyplot(fig)
 
 with col_right:
-    st.subheader("💡 Business Insights & Growth Time")
+    st.subheader("💡 Financial & Growth Insights")
     
-    for crop, info in analysis.items():
+    for crop, info in scores.items():
         st.markdown(f"""
         <div class="card">
-            <b style='font-size:1.2em;'>{crop} ({info['ta']})</b><br>
-            Suitability: <b>{info['score']}%</b><br>
-            Projected Revenue: <span class="money-text">₹{info['revenue']:,}</span><br>
-            Time to Harvest: <span class="time-text">⏱ {info['time']}</span>
+            <small>{info['cat']}</small><br>
+            <b style='font-size:1.2em;'>{crop}</b> | <span class="tamil-sub">{info['ta']}</span><br>
+            Confidence: <b>{info['score']}%</b><br>
+            Est. Revenue: <span class="revenue-text">₹{info['revenue']:,} / acre</span><br>
+            Time to Revenue: <span class="time-text">{info['time']} Years</span>
         </div>
         """, unsafe_allow_html=True)
+    
+    # VOICE GENERATION
+    if st.button("🔊 Play Technical Advisory"):
+        best_crop = max(scores, key=lambda x: scores[x]['score'])
+        voice_text = f"மண் வளம் {int(total_fertility)} சதவீதம். சிறந்த தேர்வு {scores[best_crop]['ta']}. " \
+                     f"இதன் மூலம் எதிர்பார்க்கப்படும் வருமானம் {scores[best_crop]['revenue']} ரூபாய்."
+        tts = gTTS(text=voice_text, lang='ta')
+        tts.save("pro_voice.mp3")
+        st.audio("pro_voice.mp3")
 
-# VOICE ADVISORY
-if st.button("🔊 Generate Financial Voice Advisory"):
-    voice_text = f"சிறந்த தேர்வு: {top_crop}. இதன் மூலம் எதிர்பார்க்கப்படும் வருமானம் {analysis[top_crop]['revenue']} ரூபாய். அறுவடை காலம் {analysis[top_crop]['time']}."
-    tts = gTTS(text=voice_text, lang='ta')
-    tts.save("econ_voice.mp3")
-    st.audio("econ_voice.mp3")
+# NUTRIENT ANALYSIS BAR
+st.divider()
+st.subheader("📈 Real-Time Sensor Distribution")
+fig2, ax2 = plt.subplots(figsize=(12, 3))
+ax2.bar(["N", "P", "K", "Moisture"], [n, p, k, moisture], color='#1976d2')
+ax2.set_ylim(0, 100)
+st.pyplot(fig2)
